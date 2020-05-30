@@ -1,0 +1,138 @@
+service: react-tracks-api
+
+# Create an optimized package for our functions
+package:
+  individually: true
+
+plugins:
+  - serverless-bundle # Package our functions with Webpack
+  # - serverless-offline
+  - serverless-dotenv-plugin # Load .env as environment variables
+
+custom:
+  # Our stage is based on what is passed in when running serverless
+  # commands. Or fallsback to what we have set in the provider section.
+  stage: ${opt:stage, self:provider.stage}
+  # Set the table name here so we can use it while testing locally
+  tableName: ${self:custom.stage}-tracks
+
+provider:
+  name: aws
+  runtime: nodejs12.x
+  stage: dev
+  region: us-east-2
+
+  # These environment variables are made available to our functions
+  # under process.env.
+  environment:
+    tableName: ${self:custom.tableName}
+
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:DescribeTable
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      # Restrict our IAM role permissions to
+      # the specific table for the stage
+      Resource:
+        - "Fn::GetAtt": [ TracksTable, Arn ]
+        - "arn:aws:dynamodb:us-east-2:801984791279:table/dev-tracks/index/SearchAllTracks"
+
+functions:
+  create:
+    handler: api/create.main
+    events:
+      - http:
+          path: tracks
+          method: post
+          cors: true
+          authorizer: aws_iam
+
+  createLike:
+    handler: api/createLike.main
+    events:
+      - http:
+          path: createLike
+          method: post
+          cors: true
+          authorizer: aws_iam
+  get:
+    handler: api/get.main
+    events:
+      - http:
+          path: tracks/{id}
+          method: get
+          cors: true
+          authorizer: aws_iam
+
+  listAll:
+    handler: api/listAll.main
+    events:
+      - http:
+          path: allTracks
+          method: get
+          cors: true
+          authorizer: aws_iam
+
+  listAllOwnerTracks:
+    handler: api/listAllByOwner.main
+    events:
+      - http:
+          path: allTracksOwner
+          method: get
+          cors: true
+          authorizer: aws_iam
+
+  listAllLikes:
+    handler: api/listAllLikes.main
+    events:
+      - http:
+          path: listAllLikes
+          method: get
+          cors: true
+          authorizer: aws_iam
+
+  update:
+    handler: api/update.main
+    events:
+      - http:
+          path: tracks
+          method: put
+          cors: true
+          authorizer: aws_iam
+
+  delete:
+    handler: api/delete.main
+    events:
+      - http:
+          path: tracks
+          method: delete
+          cors: true
+          authorizer: aws_iam
+
+  deleteLike:
+    handler: api/deleteLike.main
+    events:
+      - http:
+          path: likes
+          method: delete
+          cors: true
+          authorizer: aws_iam
+
+
+# Create our resources with separate CloudFormation templates
+resources:
+  # API Gateway Errors
+  - ${file(resources/api-gateway-errors.yml)}
+  # DynamoDB
+  - ${file(resources/dynamodb-table.yml)}
+  # S3
+  - ${file(resources/s3-bucket.yml)}
+  # Cognito
+  - ${file(resources/cognito-user-pool.yml)}
+  - ${file(resources/cognito-identity-pool.yml)}
